@@ -149,5 +149,6 @@ pdsh sudo yum install git -y
 pdsh git clone http://github.com/weka/tools &>/dev/null
 pdsh git clone https://github.com/brianmarkenson/Weka-Cluster-Post-Install.git
 pdsh chmod a+x ~/Weka-Cluster-Post-Install/post_install.sh
+chmod 777 /mnt/weka
 
 echo "Post Installation completed."
