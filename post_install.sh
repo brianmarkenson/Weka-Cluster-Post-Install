@@ -148,6 +148,6 @@ echo "Install GIT weka/tools on all servers"
 pdsh sudo yum install git -y
 pdsh git clone http://github.com/weka/tools &>/dev/null
 pdsh git clone https://github.com/brianmarkenson/Weka-Cluster-Post-Install.git
-pdsh chmod a+x ~/Weka-Cluster-Post_Install/post_install.sh
+pdsh chmod a+x ~/Weka-Cluster-Post-Install/post_install.sh
 
 echo "Post Installation completed."
