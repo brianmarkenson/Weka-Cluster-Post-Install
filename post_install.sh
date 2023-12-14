@@ -126,6 +126,7 @@ case $os in
         ;;
     centos)
         # For CentOS systems
+        sudo amazon-linux-extras install epel -y
         sudo yum install pdsh-rcmd-ssh.x86_64 pdsh-mod-dshgroup.x86_64 -y &>/dev/null
         pdsh "mkdir -p .dsh/group; scp $HOSTNAME:/etc/dsh/group/* .dsh/group; sudo mkdir -p /etc/dsh/group; sudo mv .dsh/group/* /etc/dsh/group"
         pdsh sudo yum install pdsh-mod-dshgroup.x86_64 -y &>/dev/null
