@@ -129,7 +129,8 @@ case $os in
         sudo amazon-linux-extras install epel -y
         sudo yum install pdsh-rcmd-ssh.x86_64 pdsh-mod-dshgroup.x86_64 -y &>/dev/null
         pdsh "mkdir -p .dsh/group; scp $HOSTNAME:/etc/dsh/group/* .dsh/group; sudo mkdir -p /etc/dsh/group; sudo mv .dsh/group/* /etc/dsh/group"
-        pdsh sudo yum install pdsh-mod-dshgroup.x86_64 -y &>/dev/null
+        pdsh sudo amazon-linux-extras install epel -y
+        pdsh sudo yum install pdsh-rcmd-ssh.x86_64 pdsh-mod-dshgroup.x86_64 -y &>/dev/null
         ;;
     *)
         echo "Unsupported OS: $os"
@@ -144,6 +145,9 @@ pdsh "scp $HOSTNAME:/etc/cluster.pdsh cluster.pdsh; sudo mv cluster.pdsh /etc"
 
 # Install GIT weka/tools on all servers
 echo "Install GIT weka/tools on all servers"
+pdsh sudo yum install git -y
 pdsh git clone http://github.com/weka/tools &>/dev/null
+pdsh git clone https://github.com/brianmarkenson/Weka-Cluster-Post-Install.git
+pdsh chmod a+x ~/Weka-Cluster-Post_Install/post_install.sh
 
 echo "Post Installation completed."
