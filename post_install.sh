@@ -87,15 +87,15 @@ sudo mv .dsh/group/* /etc/dsh/group
 
 # Create a known_hosts file with ssh-keyscan and copy the file to all hosts.
 # Also copy /etc/hosts and id_rsa to all hosts
-[ ! -e .ssh/known_hosts ] && > .ssh/known_hosts
-echo "Adding nodes to .ssh/knnown_hosts and distributing data cluster"
+[ ! -e ~/.ssh/known_hosts ] && > ~/.ssh/known_hosts
+echo "Adding nodes to .ssh/known_hosts and distributing data cluster"
 # populate the .ssh/known_hosts file
 echo "Scanning ssh keys..."
 for i in $(grep '^[0-9]\+\.[0-9]\+\.[0-9]\+\.[0-9]\+' /etc/hosts); do
   # Don't process duplicates for ssh-keyscan
-  if ! egrep -q "^$i " .ssh/known_hosts; then
+  if ! egrep -q "^$i " ~/.ssh/known_hosts; then
     echo -ne "\033[K"; echo -ne "Keyscan $i\r"
-    ssh-keyscan $i >> .ssh/known_hosts 2>/dev/null
+    ssh-keyscan $i >> ~/.ssh/known_hosts 2>/dev/null
   fi
 done
 echo -ne "\033[Kdone\n"
@@ -123,6 +123,7 @@ case $os in
         # For Debian-based systems
         sudo apt install pdsh -y &>/dev/null
         pdsh sudo apt install pdsh -y &>/dev/null
+        pdsh sudo apt install git -y &>/dev/null
         ;;
     centos)
         # For CentOS systems
@@ -131,6 +132,7 @@ case $os in
         pdsh "mkdir -p .dsh/group; scp $HOSTNAME:/etc/dsh/group/* .dsh/group; sudo mkdir -p /etc/dsh/group; sudo mv .dsh/group/* /etc/dsh/group"
         pdsh sudo amazon-linux-extras install epel -y
         pdsh sudo yum install pdsh-rcmd-ssh.x86_64 pdsh-mod-dshgroup.x86_64 -y &>/dev/null
+        pdsh sudo yum install git -y
         ;;
     *)
         echo "Unsupported OS: $os"
@@ -145,7 +147,6 @@ pdsh "scp $HOSTNAME:/etc/cluster.pdsh cluster.pdsh; sudo mv cluster.pdsh /etc"
 
 # Install GIT weka/tools on all servers
 echo "Install GIT weka/tools on all servers"
-pdsh sudo yum install git -y
 pdsh git clone http://github.com/weka/tools &>/dev/null
 pdsh git clone https://github.com/brianmarkenson/Weka-Cluster-Post-Install.git
 pdsh chmod a+x ~/Weka-Cluster-Post-Install/post_install.sh
