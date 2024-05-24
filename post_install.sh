@@ -110,7 +110,7 @@ for ip in $(grep '^[0-9]\+\.[0-9]\+\.[0-9]\+\.[0-9]\+' /etc/hosts | awk '{print 
   echo -ne "\033[K"; echo -ne "$ip\r"
   scp ~/.ssh/known_hosts ~/.ssh/id_rsa $ip:~/.ssh/ &>/dev/null
   scp /etc/hosts $ip:~/ &>/dev/null
-  ssh $ip "sudo mv post_install_tmp/hosts /etc/hosts" &>/dev/null
+  ssh $ip "sudo mv hosts /etc/hosts" &>/dev/null
 done
 echo -ne "\033[Kdone\n"
 
