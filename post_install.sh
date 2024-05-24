@@ -8,6 +8,7 @@ rm -r .dsh
 
 mv ~/.ssh/known_hosts.orig ~/.ssh/known_hosts &>/dev/null
 sudo mv /etc/hosts.orig /etc/hosts &>/dev/null
+sudo mv /etc/genders.orig /etc/genders &>/dev/null
 
 mkdir post_install_tmp
 
@@ -69,6 +70,7 @@ for role in "${roles[@]}"; do
         "s3") prefix="o";;
     esac
 
+    sudo cp /etc/genders /etc/genders.orig &> /dev/null
     # Generate shortnames and append to "aliases" file
     for ((i=0; i < ${counts["$role"]}; i++)); do
         if [ "$role" != "backend" ] && [ "$role" != "client" ]; then
@@ -79,6 +81,7 @@ for role in "${roles[@]}"; do
         fi
         echo -ne "${prefix}$i "
         echo "${prefix}$i" >> .dsh/group/$role
+	echo "${prefix}$i $role" >> post_install_tmp/genders
     done
 done
 echo ""
@@ -89,6 +92,7 @@ sudo bash -c 'paste post_install_tmp/cluster_hosts post_install_tmp/aliases >> /
 rm post_install_tmp/aliases post_install_tmp/cluster_hosts
 echo "/etc/hosts file updated"
 sudo mv .dsh/group/* /etc/dsh/group
+sudo mv post_install_tmp/genders /etc/genders
 
 # Create a known_hosts file with ssh-keyscan and copy the file to all hosts.
 # Also copy /etc/hosts and id_rsa to all hosts
@@ -154,12 +158,13 @@ esac
 echo "Distribute /etc/hosts, /etc/cluster.pdsh, /etc/profile.d/pdsh.sh to all servers"
 pdsh "scp $HOSTNAME:/etc/profile.d/pdsh.sh pdsh.sh; sudo mv pdsh.sh /etc/profile.d"
 pdsh "scp $HOSTNAME:/etc/cluster.pdsh cluster.pdsh; sudo mv cluster.pdsh /etc"
+pdsh "scp $HOSTNAME:/etc/genders genders; sudo mv genders /etc"
 
 # Install GIT weka/tools on all servers
 echo "Install GIT weka/tools on all servers"
 pdsh git clone http://github.com/weka/tools &>/dev/null
-pdsh git clone https://github.com/brianmarkenson/Weka-Cluster-Post-Install.git &>/dev/null
-pdsh chmod a+x ~/Weka-Cluster-Post-Install/post_install.sh
-sudo chmod 777 /mnt/weka
+pdsh sudo chmod 777 /mnt/weka
+
+rm -rf post_install_tmp
 
 echo "Post Installation completed."
