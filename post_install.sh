@@ -1,10 +1,15 @@
 #!/bin/bash
 # Cleanup previous run if necessary
-rm cluster_hosts* &>/dev/null
-rm aliases &>/dev/null
-mv ~/.ssh/known_hosts.orig ~/.ssh/known_hosts &>/dev/null
+
+rm -rf ./post_install_tmp
+#rm cluster_hosts* &>/dev/null
+#rm aliases &>/dev/null
 rm -r .dsh
+
+mv ~/.ssh/known_hosts.orig ~/.ssh/known_hosts &>/dev/null
 sudo mv /etc/hosts.orig /etc/hosts &>/dev/null
+
+mkdir post_install_tmp
 
 #Check for .ssh/id_rsa
 if [ ! -e ~/.ssh/id_rsa ]; then
@@ -40,8 +45,8 @@ echo "Generating list of Weka servers and clients..."
 roles=("backend" "client" "nfs" "smb" "s3")
 
 # Create or truncate the "cluster_hosts" file
-> cluster_hosts
-> aliases
+> post_install_tmp/cluster_hosts
+> post_install_tmp/aliases
 
 # Initialize variables
 declare -A counts
@@ -53,7 +58,7 @@ mkdir -p .dsh/group; sudo mkdir -p /etc/dsh/group
 
 
 for role in "${roles[@]}"; do
-    counts["$role"]=$(weka cluster servers list --role "$role" -o ip,hostname --no-header | tee -a "cluster_hosts" | wc -l)
+    counts["$role"]=$(weka cluster servers list --role "$role" -o ip,hostname --no-header | tee -a post_install_tmp/cluster_hosts | wc -l)
 
     # Determine prefix based on role
     case "$role" in
@@ -67,10 +72,10 @@ for role in "${roles[@]}"; do
     # Generate shortnames and append to "aliases" file
     for ((i=0; i < ${counts["$role"]}; i++)); do
         if [ "$role" != "backend" ] && [ "$role" != "client" ]; then
-            echo "${prefix}$i p$proto" >> aliases
+            echo "${prefix}$i p$proto" >> post_install_tmp/aliases
             ((proto++))
         else
-            echo "weka${prefix}$i ${prefix}$i" >> aliases
+            echo "weka${prefix}$i ${prefix}$i" >> post_install_tmp/aliases
         fi
         echo -ne "${prefix}$i "
         echo "${prefix}$i" >> .dsh/group/$role
@@ -80,8 +85,8 @@ echo ""
 
 # Update the /etc/hosts file with all the servers, as well as the new shortnames
 sudo cp /etc/hosts /etc/hosts.orig
-sudo bash -c 'paste cluster_hosts aliases >> /etc/hosts'
-rm aliases cluster_hosts
+sudo bash -c 'paste post_install_tmp/cluster_hosts post_install_tmp/aliases >> /etc/hosts'
+rm post_install_tmp/aliases post_install_tmp/cluster_hosts
 echo "/etc/hosts file updated"
 sudo mv .dsh/group/* /etc/dsh/group
 
@@ -103,9 +108,9 @@ echo -ne "\033[Kdone\n"
 echo "Copying files to all hosts"
 for ip in $(grep '^[0-9]\+\.[0-9]\+\.[0-9]\+\.[0-9]\+' /etc/hosts | awk '{print $2}'); do
   echo -ne "\033[K"; echo -ne "$ip\r"
-  scp .ssh/known_hosts .ssh/id_rsa $ip:~/.ssh/ &>/dev/null
+  scp ~/.ssh/known_hosts ~/.ssh/id_rsa $ip:~/.ssh/ &>/dev/null
   scp /etc/hosts $ip:~/ &>/dev/null
-  ssh $ip "sudo mv ~/hosts /etc/hosts" &>/dev/null
+  ssh $ip "sudo mv post_install_tmp/hosts /etc/hosts" &>/dev/null
 done
 echo -ne "\033[Kdone\n"
 
@@ -117,7 +122,7 @@ echo "export WCOLL=/etc/cluster.pdsh export PDSH_RCMD_TYPE=ssh" > pdsh.sh; sudo 
 source /etc/profile.d/pdsh.sh
 
 # Create cluster.pdsh for all backend and client systems
-cat /etc/hosts | egrep -v 'localhost|\:\:' | awk '{print $4}' | egrep 'b|c' > cluster.pdsh; sudo mv cluster.pdsh /etc
+cat /etc/hosts | egrep -v 'localhost|\:\:' | awk '{print $4}' | egrep 'b|c' > post_install_tmp/cluster.pdsh; sudo mv post_install_tmp/cluster.pdsh /etc
 case $os in
     debian)
         # For Debian-based systems
@@ -127,12 +132,17 @@ case $os in
         ;;
     centos)
         # For CentOS systems
-        sudo amazon-linux-extras install epel -y
+        echo "  Adding amazon-linux-extras..."
+        sudo amazon-linux-extras install epel -y &> /dev/null
+        echo "  Installing pdsh..."
         sudo yum install pdsh-rcmd-ssh.x86_64 pdsh-mod-dshgroup.x86_64 -y &>/dev/null
         pdsh "mkdir -p .dsh/group; scp $HOSTNAME:/etc/dsh/group/* .dsh/group; sudo mkdir -p /etc/dsh/group; sudo mv .dsh/group/* /etc/dsh/group"
-        pdsh sudo amazon-linux-extras install epel -y
+        echo "  Adding amazon-linux-extras to remote systems..."
+        pdsh sudo amazon-linux-extras install epel -y &>/dev/null
+        echo "  Installing pdsh on remote systems..."
         pdsh sudo yum install pdsh-rcmd-ssh.x86_64 pdsh-mod-dshgroup.x86_64 -y &>/dev/null
-        pdsh sudo yum install git -y
+        echo "Installing git on all systems..."
+        pdsh sudo yum install git -y &>/dev/null
         ;;
     *)
         echo "Unsupported OS: $os"
@@ -148,7 +158,7 @@ pdsh "scp $HOSTNAME:/etc/cluster.pdsh cluster.pdsh; sudo mv cluster.pdsh /etc"
 # Install GIT weka/tools on all servers
 echo "Install GIT weka/tools on all servers"
 pdsh git clone http://github.com/weka/tools &>/dev/null
-pdsh git clone https://github.com/brianmarkenson/Weka-Cluster-Post-Install.git
+pdsh git clone https://github.com/brianmarkenson/Weka-Cluster-Post-Install.git &>/dev/null
 pdsh chmod a+x ~/Weka-Cluster-Post-Install/post_install.sh
 sudo chmod 777 /mnt/weka
 
