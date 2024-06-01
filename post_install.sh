@@ -1,16 +1,14 @@
 #!/bin/bash
 # Cleanup previous run if necessary
 
-rm -rf ./post_install_tmp
-#rm cluster_hosts* &>/dev/null
-#rm aliases &>/dev/null
-rm -r .dsh
+TMP=post_install_tmp
+rm -rf $TMP
 
 mv ~/.ssh/known_hosts.orig ~/.ssh/known_hosts &>/dev/null
 sudo mv /etc/hosts.orig /etc/hosts &>/dev/null
 sudo mv /etc/genders.orig /etc/genders &>/dev/null
 
-mkdir post_install_tmp
+mkdir $TMP
 
 #Check for .ssh/id_rsa
 if [ ! -e ~/.ssh/id_rsa ]; then
@@ -42,111 +40,117 @@ echo "OS = $os"
 # Generate list of Weka servers and clients
 # Protocol servers will be duplicated in the backend list as well
 # List of roles
+
 echo "Generating list of Weka servers and clients..."
-roles=("backend" "client" "nfs" "smb" "s3")
-
-# Create or truncate the "cluster_hosts" file
-> post_install_tmp/cluster_hosts
-> post_install_tmp/aliases
-
-# Initialize variables
 declare -A counts
-proto=0 # Initialize protocol variable
 
-# Loop through roles, count lines, and append data to the file
+# Initialize counters
+BACKEND=0; CLIENT=0; NFS=0; SMB=0; S3=0
 
-mkdir -p .dsh/group; sudo mkdir -p /etc/dsh/group
+# Check for Weka auth token
+if [ ! -e ~/.weka/auth-token.json ]; then
+    # Login to Weka
+    weka user login
+    if [ ! -e ~/.weka/auth-token.json ]; then
+        echo "Unable to login to Weka"
+        exit 1
+    fi
+fi
 
+# Process the output of the Weka command
+weka cluster servers list -o ip,hostname,roles --no-header | while read -r line; do
+    ip=$(echo $line | awk '{print $1}')
+    hostname=$(echo $line | awk '{print $2}')
+    roles=$(echo $line | awk '{print substr($0, index($0, $3))}')
+    shortname=$(echo $hostname | cut -d '.' -f 1)
+    
+    # Add short names to aliases file
+    echo -ne "$ip " >> $TMP/aliases
+    echo -ne "$hostname " >> $TMP/aliases
+    echo -ne "$shortname " >> $TMP/aliases
 
-for role in "${roles[@]}"; do
-    counts["$role"]=$(weka cluster servers list --role "$role" -o ip,hostname --no-header | tee -a post_install_tmp/cluster_hosts | wc -l)
-
-    # Determine prefix based on role
-    case "$role" in
-        "backend") prefix="b";;
-        "client") prefix="c";;
-        "nfs") prefix="n";;
-        "smb") prefix="s";;
-        "s3") prefix="o";;
-    esac
-
-    sudo cp /etc/genders /etc/genders.orig &> /dev/null
-    # Generate shortnames and append to "aliases" file
-    for ((i=0; i < ${counts["$role"]}; i++)); do
-        if [ "$role" != "backend" ] && [ "$role" != "client" ]; then
-            echo "${prefix}$i p$proto" >> post_install_tmp/aliases
-            ((proto++))
-        else
-            echo "weka${prefix}$i ${prefix}$i" >> post_install_tmp/aliases
-        fi
-        echo -ne "${prefix}$i "
-        echo "${prefix}$i" >> .dsh/group/$role
-	echo "${prefix}$i $role" >> post_install_tmp/genders
+    echo -ne "$shortname " >> $TMP/genders.1
+    echo $shortname >> $TMP/cluster.pdsh
+    
+    for role in $roles; do
+        case $role in
+            BACKEND*) echo -ne "b$BACKEND " >> $TMP/aliases; echo -ne "backend," >> $TMP/genders.1; ((BACKEND++));;
+            CLIENT*) echo -ne "c$CLIENT " >> $TMP/aliases; echo -ne "client," >> $TMP/genders.1; ((CLIENT++));;
+            NFS*) echo -ne "n$NFS " >> $TMP/aliases; echo -ne "nfs," >> $TMP/genders.1; ((NFS++));;
+            SMB*) echo -ne "s$SMB " >> $TMP/aliases; echo -ne "smb," >> $TMP/genders.1; ((SMB++));;
+            S3*) echo -ne "o$S3 "; >> $TMP/aliases; echo -ne "s3" >> $TMP/genders.1;  ((S3++));;
+        esac
     done
+    echo "" >> $TMP/genders.1
+    cat $TMP/genders.1 | sed 's/\,$//' >> $TMP/genders; rm $TMP/genders.1
+
+    echo "" >> $TMP/aliases
 done
+
 echo ""
 
 # Update the /etc/hosts file with all the servers, as well as the new shortnames
 sudo cp /etc/hosts /etc/hosts.orig
-sudo bash -c 'paste post_install_tmp/cluster_hosts post_install_tmp/aliases >> /etc/hosts'
-rm post_install_tmp/aliases post_install_tmp/cluster_hosts
+sudo bash -c "cat $TMP/aliases >> /etc/hosts"
 echo "/etc/hosts file updated"
-sudo mv .dsh/group/* /etc/dsh/group
-sudo mv post_install_tmp/genders /etc/genders
+sudo mv $TMP/genders /etc/genders
+sudo mv $TMP/cluster.pdsh /etc/cluster.pdsh
+
+
+# PDSH configuration
+HOSTNAME=$(hostname -a | awk '{print $1}')
+echo "Configuring pdsh..."
+# Create pdsh.sh profile that will use /etc/cluster.pdsh and run using ssh
+echo "export WCOLL=/etc/cluster.pdsh export PDSH_RCMD_TYPE=ssh" > pdsh.sh; sudo mv pdsh.sh /etc/profile.d/pdsh.sh;
+export WCOLL=/etc/cluster.pdsh export PDSH_RCMD_TYPE=ssh
+source /etc/profile.d/pdsh.sh
 
 # Create a known_hosts file with ssh-keyscan and copy the file to all hosts.
 # Also copy /etc/hosts and id_rsa to all hosts
 [ ! -e ~/.ssh/known_hosts ] && > ~/.ssh/known_hosts
-echo "Adding nodes to .ssh/known_hosts and distributing data cluster"
+  echo "Adding nodes to .ssh/known_hosts and distributing data cluster"
 # populate the .ssh/known_hosts file
-echo "Scanning ssh keys..."
-for i in $(grep '^[0-9]\+\.[0-9]\+\.[0-9]\+\.[0-9]\+' /etc/hosts); do
+echo "  Scanning ssh keys..."
+for i in $(cat /etc/hosts); do
   # Don't process duplicates for ssh-keyscan
-  if ! egrep -q "^$i " ~/.ssh/known_hosts; then
+  if ! grep -Eq "$i( |$)" ~/.ssh/known_hosts; then
     echo -ne "\033[K"; echo -ne "Keyscan $i\r"
     ssh-keyscan $i >> ~/.ssh/known_hosts 2>/dev/null
   fi
 done
 echo -ne "\033[Kdone\n"
 # Copy files once
-echo "Copying files to all hosts"
-for ip in $(grep '^[0-9]\+\.[0-9]\+\.[0-9]\+\.[0-9]\+' /etc/hosts | awk '{print $2}'); do
+echo "Copying files to all hosts..."
+for ip in $(cat /etc/hosts | grep -v localhost | awk '{print $2}'); do
   echo -ne "\033[K"; echo -ne "$ip\r"
   scp ~/.ssh/known_hosts ~/.ssh/id_rsa $ip:~/.ssh/ &>/dev/null
-  scp /etc/hosts $ip:~/ &>/dev/null
-  ssh $ip "sudo mv hosts /etc/hosts" &>/dev/null
+  scp /etc/hosts /etc/genders /etc/cluster.pdsh /etc/profile.d/pdsh.sh $ip:~/ &>/dev/null
+  ssh $ip "sudo mv hosts /etc/hosts; sudo mv genders /etc/genders; sudo mv pdsh.sh /etc/profile.d/pdsh/sh; sudo mv cluster.pdsh /etc/cluster.pdsh" &>/dev/null
 done
 echo -ne "\033[Kdone\n"
 
-# Install pdsh
-HOSTNAME=$(hostname -a | awk '{print $1}')
-echo "Configuring pdsh..."
-# Create pdsh.sh profile that will use /etc/cluster.pdsh and run using ssh
-echo "export WCOLL=/etc/cluster.pdsh export PDSH_RCMD_TYPE=ssh" > pdsh.sh; sudo mv pdsh.sh /etc/profile.d/pdsh.sh;
-source /etc/profile.d/pdsh.sh
-
-# Create cluster.pdsh for all backend and client systems
-cat /etc/hosts | egrep -v 'localhost|\:\:' | awk '{print $4}' | egrep 'b|c' > post_install_tmp/cluster.pdsh; sudo mv post_install_tmp/cluster.pdsh /etc
 case $os in
     debian)
         # For Debian-based systems
-        sudo apt install pdsh -y &>/dev/null
-        pdsh sudo apt install pdsh -y &>/dev/null
-        pdsh sudo apt install git -y &>/dev/null
+	echo -ne "  Installing pdsh on local system..."
+	if ! rpm -q pdsh >&/dev/null; then sudo apt install pdsh -y &>/dev/null; echo "done"; fi
+	echo -ne "  Installing pdsh on all remote systems..."
+        pdsh "if ! rpm -q pdsh >&/dev/null; then sudo apt install pdsh -y &>/dev/null; fi"; echo "done"
+	echo -ne "  Installing git on local system..."
+        pdsh "if ! rpm -q git >&/dev/null; then sudo apt install git -y &>/dev/null; fi"; echo "done"
         ;;
     centos)
         # For CentOS systems
-        echo "  Adding amazon-linux-extras..."
-        sudo amazon-linux-extras install epel -y &> /dev/null
-        echo "  Installing pdsh..."
-        sudo yum install pdsh-rcmd-ssh.x86_64 pdsh-mod-dshgroup.x86_64 -y &>/dev/null
-        pdsh "mkdir -p .dsh/group; scp $HOSTNAME:/etc/dsh/group/* .dsh/group; sudo mkdir -p /etc/dsh/group; sudo mv .dsh/group/* /etc/dsh/group"
-        echo "  Adding amazon-linux-extras to remote systems..."
-        pdsh sudo amazon-linux-extras install epel -y &>/dev/null
-        echo "  Installing pdsh on remote systems..."
-        pdsh sudo yum install pdsh-rcmd-ssh.x86_64 pdsh-mod-dshgroup.x86_64 -y &>/dev/null
-        echo "Installing git on all systems..."
-        pdsh sudo yum install git -y &>/dev/null
+        echo -ne "  Installing amazon-linux-extras on local system..."
+        if ! rpm -q amazon-linux-extras >&/dev/null; then sudo amazon-linux-extras install epel -y &> /dev/null; fi; echo "done"
+        echo -ne "  Installing pdsh on local system..."
+        if ! rpm -q pdsh-rcmd-ssh.x86_64 >&/dev/null; then sudo yum install pdsh-rcmd-ssh.x86_64 pdsh-mod-genders -y &> /dev/null; fi ; echo "done"
+        echo -ne "  Installing amazon-linux-extras on remote systems..."
+        pdsh "if ! rpm -q amazon-linux-extras >&/dev/null; then sudo amazon-linux-extras install epel -y &> /dev/null; fi"; echo "done"
+        echo -ne "  Installing pdsh on all remote systems..."
+        pdsh "if ! rpm -q pdsh-rcmd-ssh.x86_64 >&/dev/null; then sudo yum install pdsh-rcmd-ssh.x86_64 pdsh-mod-genders -y &> /dev/null; fi"; echo "done"
+        echo -ne "Installing git on all systems..."
+        pdsh "if ! rpm -q git >&/dev/null; then sudo yum install git -y &> /dev/null; fi"; echo "done"
         ;;
     *)
         echo "Unsupported OS: $os"
@@ -154,17 +158,11 @@ case $os in
         ;;
 esac
 
-# Distribute /etc/hosts, /etc/cluster.pdsh, /etc/profile.d/pdsh.sh to all servers
-echo "Distribute /etc/hosts, /etc/cluster.pdsh, /etc/profile.d/pdsh.sh to all servers"
-pdsh "scp $HOSTNAME:/etc/profile.d/pdsh.sh pdsh.sh; sudo mv pdsh.sh /etc/profile.d"
-pdsh "scp $HOSTNAME:/etc/cluster.pdsh cluster.pdsh; sudo mv cluster.pdsh /etc"
-pdsh "scp $HOSTNAME:/etc/genders genders; sudo mv genders /etc"
-
 # Install GIT weka/tools on all servers
-echo "Install GIT weka/tools on all servers"
-pdsh git clone http://github.com/weka/tools &>/dev/null
-pdsh sudo chmod 777 /mnt/weka
+echo -ne "Install GIT weka/tools on all servers"
+pdsh git clone http://github.com/weka/tools &>/dev/null; echo "done"
+pdsh sudo chmod 777 /mnt/weka &> /dev/null
 
-rm -rf post_install_tmp
+rm -rf post_install_tmp &>/dev/null
 
 echo "Post Installation completed."
