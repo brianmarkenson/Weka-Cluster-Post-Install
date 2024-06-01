@@ -101,8 +101,8 @@ sudo mv $TMP/cluster.pdsh /etc/cluster.pdsh
 HOSTNAME=$(hostname -a | awk '{print $1}')
 echo "Configuring pdsh..."
 # Create pdsh.sh profile that will use /etc/cluster.pdsh and run using ssh
-echo "export WCOLL=/etc/cluster.pdsh export PDSH_RCMD_TYPE=ssh" > pdsh.sh; sudo mv pdsh.sh /etc/profile.d/pdsh.sh;
-export WCOLL=/etc/cluster.pdsh export PDSH_RCMD_TYPE=ssh
+sudo bash -c 'echo "export WCOLL=/etc/cluster.pdsh PDSH_RCMD_TYPE=ssh" > /etc/profile.d/pdsh.sh'
+export WCOLL=/etc/cluster.pdsh PDSH_RCMD_TYPE=ssh
 source /etc/profile.d/pdsh.sh
 
 # Create a known_hosts file with ssh-keyscan and copy the file to all hosts.
@@ -125,7 +125,7 @@ for ip in $(cat /etc/hosts | grep -v localhost | awk '{print $2}'); do
   echo -ne "\033[K"; echo -ne "$ip\r"
   scp ~/.ssh/known_hosts ~/.ssh/id_rsa $ip:~/.ssh/ &>/dev/null
   scp /etc/hosts /etc/genders /etc/cluster.pdsh /etc/profile.d/pdsh.sh $ip:~/ &>/dev/null
-  ssh $ip "sudo mv hosts /etc/hosts; sudo mv genders /etc/genders; sudo mv pdsh.sh /etc/profile.d/pdsh/sh; sudo mv cluster.pdsh /etc/cluster.pdsh" &>/dev/null
+  ssh $ip "sudo mv hosts /etc/hosts; sudo mv genders /etc/genders; sudo mv pdsh.sh /etc/profile.d/pdsh.sh; sudo mv cluster.pdsh /etc/cluster.pdsh" &>/dev/null
 done
 echo -ne "\033[Kdone\n"
 
