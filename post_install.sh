@@ -58,7 +58,7 @@ if [ ! -e ~/.weka/auth-token.json ]; then
 fi
 
 # Process the output of the Weka command
-weka cluster servers list -o ip,hostname,roles --no-header | while read -r line; do
+weka cluster servers list -o ip,hostname,roles --no-header -s up_since | while read -r line; do
     ip=$(echo $line | awk '{print $1}')
     hostname=$(echo $line | awk '{print $2}')
     roles=$(echo $line | awk '{print substr($0, index($0, $3))}')
@@ -142,11 +142,11 @@ case $os in
     centos)
         # For CentOS systems
         echo -ne "  Installing amazon-linux-extras on local system..."
-        if ! rpm -q amazon-linux-extras >&/dev/null; then sudo amazon-linux-extras install epel -y &> /dev/null; fi; echo "done"
+        if ! rpm -q epel-release >&/dev/null; then sudo amazon-linux-extras install epel -y &> /dev/null; fi; echo "done"
         echo -ne "  Installing pdsh on local system..."
         if ! rpm -q pdsh-rcmd-ssh.x86_64 >&/dev/null; then sudo yum install pdsh-rcmd-ssh.x86_64 pdsh-mod-genders -y &> /dev/null; fi ; echo "done"
         echo -ne "  Installing amazon-linux-extras on remote systems..."
-        pdsh "if ! rpm -q amazon-linux-extras >&/dev/null; then sudo amazon-linux-extras install epel -y &> /dev/null; fi"; echo "done"
+        pdsh "if ! rpm -q epel-release >&/dev/null; then sudo amazon-linux-extras install epel -y &> /dev/null; fi"; echo "done"
         echo -ne "  Installing pdsh on all remote systems..."
         pdsh "if ! rpm -q pdsh-rcmd-ssh.x86_64 >&/dev/null; then sudo yum install pdsh-rcmd-ssh.x86_64 pdsh-mod-genders -y &> /dev/null; fi"; echo "done"
         echo -ne "Installing git on all systems..."
