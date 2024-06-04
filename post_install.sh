@@ -112,7 +112,7 @@ echo "/etc/hosts /etc/genders /etc/cluster.pdsh /etc/profile.d/pdsh.sh files upd
 echo -ne "  Scanning ssh keys..."
 for i in $(cat /etc/hosts); do
   # Don't process duplicates for ssh-keyscan
-  if ! grep -Eq "$i( |$)" ~/.ssh/known_hosts; then
+  if ! grep -Eq "$i " ~/.ssh/known_hosts; then
     echo -ne "\r\e[22CKeyscan $i\e[K\r"
     ssh-keyscan $i >> ~/.ssh/known_hosts 2>/dev/null
   fi
