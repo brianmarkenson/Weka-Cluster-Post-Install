@@ -121,7 +121,7 @@ echo -ne "\r\e[22Cdone\e[K\n"
 # Copy files once
 echo -ne "Copying files to all hosts..."
 for ip in $(cat /etc/hosts | grep -v localhost | awk '{print $2}'); do
-  echo -ne "\r\e[30$ip\e[K\r"
+  echo -ne "\r\e[30C$ip\e[K\r"
   scp ~/.ssh/known_hosts ~/.ssh/id_rsa $ip:~/.ssh/ &>/dev/null
   scp /etc/hosts /etc/genders /etc/cluster.pdsh /etc/profile.d/pdsh.sh $ip:~/ &>/dev/null
   ssh $ip "sudo mv hosts /etc/hosts; sudo mv genders /etc/genders; sudo mv pdsh.sh /etc/profile.d/pdsh.sh; sudo mv cluster.pdsh /etc/cluster.pdsh" &>/dev/null
