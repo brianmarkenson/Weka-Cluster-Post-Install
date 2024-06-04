@@ -27,6 +27,9 @@ if [ -e /etc/os-release ]; then
     elif [[ "$ID_LIKE" == *centos* ]]; then
         os=centos
         CENTOS=1
+    elif [[ "$ID_LIKE" == "redhat" ]]; then
+        os=redhat
+	REDHAT=1
     else
         echo "Distribution is not centos / debian"
         exit 1
@@ -146,6 +149,15 @@ case $os in
         if ! rpm -q pdsh-rcmd-ssh.x86_64 >&/dev/null; then sudo yum install pdsh-rcmd-ssh.x86_64 pdsh-mod-genders -y &> /dev/null; fi ; echo "done"
         echo -ne "  Installing amazon-linux-extras on all nodes..."
         pdsh "if ! rpm -q epel-release >&/dev/null; then sudo amazon-linux-extras install epel -y &> /dev/null; fi"; echo "done"
+        echo -ne "  Installing pdsh on all nodes..."
+        pdsh "if ! rpm -q pdsh-rcmd-ssh.x86_64 >&/dev/null; then sudo yum install pdsh-rcmd-ssh.x86_64 pdsh-mod-genders -y &> /dev/null; fi"; echo "done"
+        echo -ne "  Installing git on all nodes..."
+        pdsh "if ! rpm -q git >&/dev/null; then sudo yum install git -y &> /dev/null; fi"; echo "done"
+        ;;
+    redhat)
+        # For Redhat systems
+        echo -ne "  Installing pdsh on local node..."
+        if ! rpm -q pdsh-rcmd-ssh.x86_64 >&/dev/null; then sudo yum install pdsh-rcmd-ssh.x86_64 pdsh-mod-genders -y &> /dev/null; fi ; echo "done"
         echo -ne "  Installing pdsh on all nodes..."
         pdsh "if ! rpm -q pdsh-rcmd-ssh.x86_64 >&/dev/null; then sudo yum install pdsh-rcmd-ssh.x86_64 pdsh-mod-genders -y &> /dev/null; fi"; echo "done"
         echo -ne "  Installing git on all nodes..."
