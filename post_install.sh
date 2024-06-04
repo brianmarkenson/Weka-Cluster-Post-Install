@@ -119,14 +119,14 @@ for i in $(cat /etc/hosts); do
 done
 echo -ne "\r\e[22Cdone\e[K\n"
 # Copy files once
-echo -ne "Copying files to all hosts..."
+echo -ne "  Copying files to all hosts..."
 for ip in $(cat /etc/hosts | grep -v localhost | awk '{print $2}'); do
-  echo -ne "\r\e[30C$ip\e[K\r"
+  echo -ne "\r\e[32C$ip\e[K\r"
   scp ~/.ssh/known_hosts ~/.ssh/id_rsa $ip:~/.ssh/ &>/dev/null
   scp /etc/hosts /etc/genders /etc/cluster.pdsh /etc/profile.d/pdsh.sh $ip:~/ &>/dev/null
   ssh $ip "sudo mv hosts /etc/hosts; sudo mv genders /etc/genders; sudo mv pdsh.sh /etc/profile.d/pdsh.sh; sudo mv cluster.pdsh /etc/cluster.pdsh" &>/dev/null
 done
-echo -ne "\r\e[30Cdone\e[K\n"
+echo -ne "\r\e[32Cdone\e[K\n"
 
 case $os in
     debian)
@@ -148,7 +148,7 @@ case $os in
         pdsh "if ! rpm -q epel-release >&/dev/null; then sudo amazon-linux-extras install epel -y &> /dev/null; fi"; echo "done"
         echo -ne "  Installing pdsh on all nodes..."
         pdsh "if ! rpm -q pdsh-rcmd-ssh.x86_64 >&/dev/null; then sudo yum install pdsh-rcmd-ssh.x86_64 pdsh-mod-genders -y &> /dev/null; fi"; echo "done"
-        echo -ne "Installing git on all nodes..."
+        echo -ne "  Installing git on all nodes..."
         pdsh "if ! rpm -q git >&/dev/null; then sudo yum install git -y &> /dev/null; fi"; echo "done"
         ;;
     *)
@@ -158,7 +158,7 @@ case $os in
 esac
 
 # Install GIT weka/tools on all servers
-echo -ne "Installing GIT weka/tools on all nodes..."
+echo -ne "  Installing GIT weka/tools on all nodes..."
 pdsh git clone http://github.com/weka/tools &>/dev/null; echo "done"
 echo -ne "Mounting Weka on clients..."
 pdsh "sudo mkdir /mnt/weka" &>/dev/null
