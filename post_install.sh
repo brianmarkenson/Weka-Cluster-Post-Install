@@ -161,7 +161,7 @@ esac
 # Install GIT weka/tools on all servers
 echo -ne "Install GIT weka/tools on all servers"
 pdsh git clone http://github.com/weka/tools &>/dev/null; echo "done"
-pdsh sudo chmod 777 /mnt/weka &> /dev/null
+pdsh "sudo mkdir /mnt/weka; sudo chmod 777 /mnt/weka" &>/dev/null  
 
 rm -rf post_install_tmp &>/dev/null
 
