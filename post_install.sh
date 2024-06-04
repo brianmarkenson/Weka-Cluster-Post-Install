@@ -27,7 +27,7 @@ if [ -e /etc/os-release ]; then
     elif [[ "$ID_LIKE" == *centos* ]]; then
         os=centos
         CENTOS=1
-    elif [[ "$ID_LIKE" == "redhat" ]]; then
+    elif [[ "$ID_LIKE" == *redhat* ]]; then
         os=redhat
 	REDHAT=1
     else
