@@ -41,7 +41,7 @@ echo "OS = $os"
 # Protocol servers will be duplicated in the backend list as well
 # List of roles
 
-echo "Generating list of Weka servers and clients..."
+echo -ne "Generating list of Weka servers and clients..."
 declare -A counts
 
 # Initialize counters
@@ -87,69 +87,68 @@ weka cluster servers list -o ip,hostname,roles --no-header -s up_since | while r
     echo "" >> $TMP/aliases
 done
 
-echo ""
+echo "done"
 
 # Update the /etc/hosts file with all the servers, as well as the new shortnames
 sudo cp /etc/hosts /etc/hosts.orig
 sudo bash -c "cat $TMP/aliases >> /etc/hosts"
-echo "/etc/hosts file updated"
 sudo mv $TMP/genders /etc/genders
 sudo mv $TMP/cluster.pdsh /etc/cluster.pdsh
 
 
 # PDSH configuration
 HOSTNAME=$(hostname -a | awk '{print $1}')
-echo "Configuring pdsh..."
 # Create pdsh.sh profile that will use /etc/cluster.pdsh and run using ssh
 sudo bash -c 'echo "export WCOLL=/etc/cluster.pdsh PDSH_RCMD_TYPE=ssh" > /etc/profile.d/pdsh.sh'
 export WCOLL=/etc/cluster.pdsh PDSH_RCMD_TYPE=ssh
 source /etc/profile.d/pdsh.sh
+echo "/etc/hosts /etc/genders /etc/cluster.pdsh /etc/profile.d/pdsh.sh files updated"
 
 # Create a known_hosts file with ssh-keyscan and copy the file to all hosts.
 # Also copy /etc/hosts and id_rsa to all hosts
 [ ! -e ~/.ssh/known_hosts ] && > ~/.ssh/known_hosts
-  echo "Adding nodes to .ssh/known_hosts and distributing data cluster"
+  echo "Adding nodes to .ssh/known_hosts and distributing data to cluster"
 # populate the .ssh/known_hosts file
-echo "  Scanning ssh keys..."
+echo -ne "  Scanning ssh keys..."
 for i in $(cat /etc/hosts); do
   # Don't process duplicates for ssh-keyscan
   if ! grep -Eq "$i( |$)" ~/.ssh/known_hosts; then
-    echo -ne "\033[K"; echo -ne "Keyscan $i\r"
+    echo -ne "\033[50D\033[24CKeyscan $i\r"
     ssh-keyscan $i >> ~/.ssh/known_hosts 2>/dev/null
   fi
 done
-echo -ne "\033[Kdone\n"
+echo -ne "\033[50D\033[30Cdone\n"
 # Copy files once
 echo "Copying files to all hosts..."
 for ip in $(cat /etc/hosts | grep -v localhost | awk '{print $2}'); do
-  echo -ne "\033[K"; echo -ne "$ip\r"
+  echo -ne "\033[50D\033[30$ip\r"
   scp ~/.ssh/known_hosts ~/.ssh/id_rsa $ip:~/.ssh/ &>/dev/null
   scp /etc/hosts /etc/genders /etc/cluster.pdsh /etc/profile.d/pdsh.sh $ip:~/ &>/dev/null
   ssh $ip "sudo mv hosts /etc/hosts; sudo mv genders /etc/genders; sudo mv pdsh.sh /etc/profile.d/pdsh.sh; sudo mv cluster.pdsh /etc/cluster.pdsh" &>/dev/null
 done
-echo -ne "\033[Kdone\n"
+echo -ne "\033[50D\033[30done\n"
 
 case $os in
     debian)
         # For Debian-based systems
-	echo -ne "  Installing pdsh on local system..."
+	echo -ne "  Installing pdsh on local node..."
 	if ! rpm -q pdsh >&/dev/null; then sudo apt install pdsh -y &>/dev/null; echo "done"; fi
-	echo -ne "  Installing pdsh on all remote systems..."
+	echo -ne "  Installing pdsh on all nodes..."
         pdsh "if ! rpm -q pdsh >&/dev/null; then sudo apt install pdsh -y &>/dev/null; fi"; echo "done"
-	echo -ne "  Installing git on local system..."
+	echo -ne "  Installing git on all nodes..."
         pdsh "if ! rpm -q git >&/dev/null; then sudo apt install git -y &>/dev/null; fi"; echo "done"
         ;;
     centos)
         # For CentOS systems
-        echo -ne "  Installing amazon-linux-extras on local system..."
+        echo -ne "  Installing amazon-linux-extras on local node..."
         if ! rpm -q epel-release >&/dev/null; then sudo amazon-linux-extras install epel -y &> /dev/null; fi; echo "done"
-        echo -ne "  Installing pdsh on local system..."
+        echo -ne "  Installing pdsh on local node..."
         if ! rpm -q pdsh-rcmd-ssh.x86_64 >&/dev/null; then sudo yum install pdsh-rcmd-ssh.x86_64 pdsh-mod-genders -y &> /dev/null; fi ; echo "done"
-        echo -ne "  Installing amazon-linux-extras on remote systems..."
+        echo -ne "  Installing amazon-linux-extras on all nodes..."
         pdsh "if ! rpm -q epel-release >&/dev/null; then sudo amazon-linux-extras install epel -y &> /dev/null; fi"; echo "done"
-        echo -ne "  Installing pdsh on all remote systems..."
+        echo -ne "  Installing pdsh on all nodes..."
         pdsh "if ! rpm -q pdsh-rcmd-ssh.x86_64 >&/dev/null; then sudo yum install pdsh-rcmd-ssh.x86_64 pdsh-mod-genders -y &> /dev/null; fi"; echo "done"
-        echo -ne "Installing git on all systems..."
+        echo -ne "Installing git on all nodes..."
         pdsh "if ! rpm -q git >&/dev/null; then sudo yum install git -y &> /dev/null; fi"; echo "done"
         ;;
     *)
@@ -159,11 +158,13 @@ case $os in
 esac
 
 # Install GIT weka/tools on all servers
-echo -ne "Install GIT weka/tools on all servers"
+echo -ne "Installing GIT weka/tools on all nodes..."
 pdsh git clone http://github.com/weka/tools &>/dev/null; echo "done"
+echo -ne "Mounting Weka on clients..."
 pdsh "sudo mkdir /mnt/weka" &>/dev/null
 pdsh -g client "sudo mount -t wekafs b0/default /mnt/weka" &>/dev/null
 pdsh -g client "sudo chmod 777 /mnt/weka" &>/dev/null  
+echo "done"
 
 rm -rf post_install_tmp &>/dev/null
 
