@@ -17,7 +17,7 @@ if [ ! -e ~/.ssh/id_rsa ]; then
 fi
 
 # Determine OS type
-if [ -e /etc/os-release ]; then
+if [[ -e /etc/os-release ]]; then
     # Source the file to get distribution information
     . /etc/os-release
     # Check the ID_LIKE field for distribution name
@@ -51,10 +51,10 @@ declare -A counts
 BACKEND=0; CLIENT=0; NFS=0; SMB=0; S3=0
 
 # Check for Weka auth token
-if [ ! -e ~/.weka/auth-token.json ]; then
+if [[ ! -e ~/.weka/auth-token.json ]]; then
     # Login to Weka
     weka user login
-    if [ ! -e ~/.weka/auth-token.json ]; then
+    if [[ ! -e ~/.weka/auth-token.json ]]; then
         echo "Unable to login to Weka"
         exit 1
     fi
@@ -65,13 +65,17 @@ weka cluster servers list -o ip,hostname,roles --no-header -s up_since | while r
     ip=$(echo $line | awk '{print $1}')
     hostname=$(echo $line | awk '{print $2}')
     roles=$(echo $line | awk '{print substr($0, index($0, $3))}')
-    shortname=$(echo $hostname | cut -d '.' -f 1)
     
     # Add short names to aliases file
     echo -ne "$ip " >> $TMP/aliases
     echo -ne "$hostname " >> $TMP/aliases
-    echo -ne "$shortname " >> $TMP/aliases
-
+    if [[ "$hostname" == *.* ]]; then 
+      shortname=$(echo $hostname | cut -d '.' -f 1)
+      echo -ne "$shortname " >> $TMP/aliases
+    else
+      shortname=$hostname
+    fi
+    
     echo -ne "$shortname " >> $TMP/genders.1
     echo $shortname >> $TMP/cluster.pdsh
     
@@ -98,9 +102,6 @@ sudo bash -c "cat $TMP/aliases >> /etc/hosts"
 sudo mv $TMP/genders /etc/genders
 sudo mv $TMP/cluster.pdsh /etc/cluster.pdsh
 
-
-# PDSH configuration
-HOSTNAME=$(hostname -a | awk '{print $1}')
 # Create pdsh.sh profile that will use /etc/cluster.pdsh and run using ssh
 sudo bash -c 'echo "export WCOLL=/etc/cluster.pdsh PDSH_RCMD_TYPE=ssh" > /etc/profile.d/pdsh.sh'
 export WCOLL=/etc/cluster.pdsh PDSH_RCMD_TYPE=ssh
@@ -143,12 +144,16 @@ case $os in
         ;;
     centos)
         # For CentOS systems
-        echo -ne "  Installing amazon-linux-extras on local node..."
-        if ! rpm -q epel-release >&/dev/null; then sudo amazon-linux-extras install epel -y &> /dev/null; fi; echo "done"
+        if [[ -d /etc/amazon ]]; then
+	  echo -ne "  Installing amazon-linux-extras on local node..."
+          if ! rpm -q epel-release >&/dev/null; then sudo amazon-linux-extras install epel -y &> /dev/null; fi; echo "done"
+	fi
         echo -ne "  Installing pdsh on local node..."
         if ! rpm -q pdsh-rcmd-ssh.x86_64 >&/dev/null; then sudo yum install pdsh-rcmd-ssh.x86_64 pdsh-mod-genders -y &> /dev/null; fi ; echo "done"
-        echo -ne "  Installing amazon-linux-extras on all nodes..."
-        pdsh "if ! rpm -q epel-release >&/dev/null; then sudo amazon-linux-extras install epel -y &> /dev/null; fi"; echo "done"
+        if [[ -d /etc/amazon ]]; then
+	  echo -ne "  Installing amazon-linux-extras on all nodes..."
+          pdsh "if ! rpm -q epel-release >&/dev/null; then sudo amazon-linux-extras install epel -y &> /dev/null; fi"; echo "done"
+	fi
         echo -ne "  Installing pdsh on all nodes..."
         pdsh "if ! rpm -q pdsh-rcmd-ssh.x86_64 >&/dev/null; then sudo yum install pdsh-rcmd-ssh.x86_64 pdsh-mod-genders -y &> /dev/null; fi"; echo "done"
         echo -ne "  Installing git on all nodes..."
