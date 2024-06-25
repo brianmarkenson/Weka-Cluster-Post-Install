@@ -53,9 +53,11 @@ BACKEND=0; CLIENT=0; NFS=0; SMB=0; S3=0
 # Check for Weka auth token
 if [[ ! -e ~/.weka/auth-token.json ]]; then
     # Login to Weka
+    echo ""
+    echo "  Log in to Weka as admin"
     weka user login
     if [[ ! -e ~/.weka/auth-token.json ]]; then
-        echo "Unable to login to Weka"
+        echo "  Unable to login to Weka"
         exit 1
     fi
 fi
